@@ -1,0 +1,72 @@
+# -------------------------------------------------------------------
+# .editorconfig for PHP development using PhpStorm (macOS + Windows)
+# Author: Pierre G. Boutquin
+# GitHub: https://github.com/boutquin
+# License: Apache 2.0
+# -------------------------------------------------------------------
+
+# top-most EditorConfig file (stop searching parent dirs)
+root = true
+
+# ---------------------------
+# DEFAULT FOR ALL FILES
+# ---------------------------
+
+[*]
+charset = utf-8                    # consistent UTF-8 encoding
+end_of_line = lf                   # enforce LF line endings (cross-platform safe)
+insert_final_newline = true       # ensures newline at end of every file
+trim_trailing_whitespace = true   # removes accidental space/tabs at line ends
+indent_style = space              # no tabs!
+indent_size = 4                   # 4 spaces = standard for PHP
+max_line_length = 120             # default, can override per file type
+
+# ---------------------------
+# PHP-SPECIFIC FORMATTING
+# ---------------------------
+
+[*.php]
+indent_size = 4
+insert_final_newline = true
+max_line_length = 120
+
+# PhpStorm respects PSR-12: avoid trailing commas in argument lists, etc.
+# For advanced rules, use PHP-CS-Fixer or PhpStorm code style settings
+
+# ---------------------------
+# YAML / JSON / XML / NEON
+# ---------------------------
+
+[*.{yml,yaml,json,xml,neon}]
+indent_size = 2                   # 2 spaces is preferred for most config formats
+
+# ---------------------------
+# MARKDOWN / DOCS
+# ---------------------------
+
+[*.md]
+trim_trailing_whitespace = false  # allow whitespace for markdown formatting
+max_line_length = off             # don't enforce wrapping in prose files
+
+# ---------------------------
+# SHELL SCRIPTS
+# ---------------------------
+
+[*.sh]
+end_of_line = lf
+indent_size = 2
+
+# ---------------------------
+# JAVASCRIPT / CSS / HTML
+# ---------------------------
+
+[*.{js,ts,css,scss,html}]
+indent_size = 2
+max_line_length = 120
+
+# ---------------------------
+# SPECIAL OVERRIDES
+# ---------------------------
+
+[Makefile]
+indent_style = tab                # Makefiles require tabs (do not use spaces)

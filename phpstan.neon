@@ -1,0 +1,44 @@
+# -------------------------------------------------------------------
+# phpstan.neon — Static Analysis Configuration (PHPStan 2.1+)
+# Project: PHP 8.3 PhpStorm Starter Project
+# Author: Pierre G. Boutquin
+# -------------------------------------------------------------------
+
+includes:
+    - vendor/phpstan/phpstan-strict-rules/rules.neon
+
+parameters:
+    level: 8
+
+    paths:
+        - src
+        - tests
+
+    inferPrivatePropertyTypeFromConstructor: true
+    checkUninitializedProperties: true
+    checkExplicitMixed: true
+    checkMissingTypehints: true
+    checkMissingVarTagTypehint: true
+    treatPhpDocTypesAsCertain: true
+    reportUnmatchedIgnoredErrors: false
+
+    bootstrapFiles:
+        - tests/bootstrap.php
+
+    excludePaths:
+        - tests/_fixtures/*
+        - vendor/*
+
+    ignoreErrors:
+        # Allow PHPUnit dynamic static method assertions (common in tests)
+        - '#Dynamic call to static method PHPUnit\\Framework\\Assert::.*#'
+
+        # Ignore assertion that "assertTrue(true)" is redundant
+        - '#Call to method PHPUnit\\Framework\\Assert::assertTrue\(\) with true will always evaluate to true.#'
+
+        # Allow offset checks on $_ENV that may be set dynamically
+        - '#Offset .+ does not exist on array.+#'
+
+        # Allow type confusion during early bootstrap (mixed .env override)
+        - '#Parameter \#1 \$filename of function is_file expects string, mixed given.#'
+        - '#Parameter \#1 \$path of method App\\Environment\\SimpleDotEnvLoader::load\(\) expects string, mixed given.#'

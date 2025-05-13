@@ -1,0 +1,112 @@
+# -------------------------------------------------------------------
+# .gitattributes for PHP development
+# Author: Pierre G. Boutquin
+# GitHub: https://github.com/boutquin
+# License: Apache 2.0
+# -------------------------------------------------------------------
+
+# ---------------------------
+# LINE ENDINGS NORMALIZATION
+# ---------------------------
+
+# Force Unix-style LF for all text files (recommended for PHP projects)
+* text=auto eol=lf
+
+# ---------------------------
+# PHP SOURCE & CONFIG FILES
+# ---------------------------
+
+*.php         text
+*.phpt        text
+*.phtml       text
+*.php.inc     text
+*.neon        text
+*.xml         text
+*.yml         text
+*.yaml        text
+*.ini         text
+*.json        text
+*.env         text
+*.md          text
+*.html        text
+*.css         text
+*.scss        text
+*.js          text
+*.ts          text
+
+# ---------------------------
+# EXECUTABLE OR BINARY FILES
+# ---------------------------
+
+# Prevent diffing of binary files
+*.png         binary
+*.jpg         binary
+*.jpeg        binary
+*.gif         binary
+*.ico         binary
+# Mark SVGs as text (you can change to binary if treating as opaque blobs)
+*.svg         text
+*.webp        binary
+*.woff        binary
+*.woff2       binary
+*.ttf         binary
+*.eot         binary
+*.otf         binary
+*.mp3         binary
+*.mp4         binary
+*.zip         binary
+*.tar         binary
+*.gz          binary
+*.7z          binary
+*.phar        binary
+*.pdf         binary
+*.docx        binary
+*.xlsx        binary
+
+# ---------------------------
+# TEST AND CI FILES
+# ---------------------------
+
+# Treat test files and coverage reports as text
+*.log         text
+*.diff        text
+*.patch       text
+*.out         text
+*.csv         text
+
+# ---------------------------
+# GIT ATTRIBUTES FOR VENDOR AND BUILD FOLDERS
+# ---------------------------
+
+# Optional: reduce noise in diffs, hides from GitHub PRs
+/vendor/**    linguist-vendored
+/node_modules/** linguist-vendored
+/build/**     linguist-generated
+/dist/**      linguist-generated
+/coverage/**  linguist-generated
+.phpunit.cache/** linguist-generated
+
+# ---------------------------
+# OPTIONAL: GIT LINGUIST LANGUAGE OVERRIDE
+# ---------------------------
+
+# Mark PHP as the main language (GitHub language stats)
+*.php linguist-language=PHP
+
+# ---------------------------
+# EXECUTABLE FLAGS
+# ---------------------------
+
+# Shell scripts
+*.sh          text eol=lf
+*.bash        text eol=lf
+
+# Mark CLI entry points as executable (if committed as such)
+bin/*         text eol=lf
+scripts/*     text eol=lf
+
+# ---------------------------
+# FINAL NOTE
+# ---------------------------
+# This file ensures consistent cross-platform behavior for contributors
+# and helps avoid merge/diff issues with binary or generated files.
