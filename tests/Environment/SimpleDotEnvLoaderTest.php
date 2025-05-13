@@ -11,14 +11,45 @@ use Psr\Log\LoggerInterface;
 /**
  * Class SimpleDotEnvLoaderTest
  *
- * Validates correct parsing, loading, masking, and logging of `.env` files using SimpleDotEnvLoader.
+ * Comprehensive PHPUnit suite ensuring the reliability of {@see SimpleDotEnvLoader}.
+ *
+ * Purpose:
+ * - Verifies correct loading of .env files into $_ENV/$_SERVER without overwriting existing keys.
+ * - Confirms quoted/escaped values are parsed, sensitive keys are masked in logs, and runtime idempotence.
+ * - Guards against regressions by covering error cases such as missing files or malformed lines.
+ *
+ * Features:
+ * - Supports `export VAR=VALUE` syntax, blank‑line/comment skipping, complex keys, and whitespace tolerance.
+ * - Utilises temp files for isolation and PSR‑3 logger mocks to assert diagnostic output.
+ * - Covers reset() functionality plus cache‑busting behaviour.
+ *
+ * Usage:
+ * ```bash
+ * vendor/bin/phpunit --filter SimpleDotEnvLoaderTest
+ * ```
+ *
+ * @author
+ *      Pierre G. Boutquin <github.com/boutquin>
+ * @license
+ *      Apache-2.0
+ *
+ * @see
+ *      https://github.com/boutquin/php-template
+ *
+ * @covers  \App\Environment\SimpleDotEnvLoader
+ *
+ * @uses    \App\Environment\SimpleDotEnvLoader::unquoteValue
+ * @uses    \App\Environment\SimpleDotEnvLoader::maskIfSensitive
  */
 final class SimpleDotEnvLoaderTest extends TestCase
 {
+    /**
+     * Temporary .env file path created for each test.
+     */
     private string $tempEnvFile = '';
 
     /**
-     * Creates a temporary file for test use.
+     * Creates a temporary file before each test.
      *
      * @return void
      */
@@ -28,7 +59,7 @@ final class SimpleDotEnvLoaderTest extends TestCase
     }
 
     /**
-     * Deletes the temporary file after test completes.
+     * Removes the temporary file after each test.
      *
      * @return void
      */
@@ -38,9 +69,9 @@ final class SimpleDotEnvLoaderTest extends TestCase
     }
 
     /**
-     * Writes test content to the temporary .env file.
+     * Helper to write .env‑style content into the temp file.
      *
-     * @param string $content Raw .env-style content.
+     * @param string $content Raw .env content.
      *
      * @return void
      */
@@ -49,8 +80,12 @@ final class SimpleDotEnvLoaderTest extends TestCase
         file_put_contents($this->tempEnvFile, $content);
     }
 
+    /* --------------------------------------------------------------------- */
+    /*                              Happy Path                               */
+    /* --------------------------------------------------------------------- */
+
     /**
-     * Verifies loading of typical unquoted and quoted variables.
+     * Ensures a well‑formed .env file is parsed and loaded into $_ENV.
      *
      * @return void
      */
@@ -73,14 +108,13 @@ final class SimpleDotEnvLoaderTest extends TestCase
     }
 
     /**
-     * Ensures previously loaded variables are not overwritten.
+     * Confirms existing environment variables are not overridden on load.
      *
      * @return void
      */
     public function testSkipsAlreadySetVariables(): void
     {
         $_ENV['APP_ENV'] = 'preset';
-
         $this->setEnvFileContent("APP_ENV=should_not_override");
 
         $loader = new SimpleDotEnvLoader();
@@ -90,44 +124,46 @@ final class SimpleDotEnvLoaderTest extends TestCase
     }
 
     /**
-     * Confirms that calling load() multiple times does not reload variables.
+     * Verifies that re‑invoking load() does not re‑process the same file.
      *
      * @return void
      */
     public function testLoaderIsIdempotent(): void
     {
-        $this->setEnvFileContent("ONCE_ONLY=yes");
+        $this->setEnvFileContent('ONCE_ONLY=yes');
 
         $loader = new SimpleDotEnvLoader();
         $loader->load($this->tempEnvFile);
-
-        $_ENV['ONCE_ONLY'] = 'overwritten_manually';
-
+        $_ENV['ONCE_ONLY'] = 'manual_change'; // mimic runtime modification
         $loader->load($this->tempEnvFile);
 
-        $this->assertSame('overwritten_manually', $_ENV['ONCE_ONLY']);
+        $this->assertSame('manual_change', $_ENV['ONCE_ONLY']);
     }
 
+    /* --------------------------------------------------------------------- */
+    /*                              Edge Cases                               */
+    /* --------------------------------------------------------------------- */
+
     /**
-     * Validates logger warning is issued for missing .env file.
+     * Ensures loading a missing file emits a warning (and does nothing else).
      *
      * @return void
      */
     public function testHandlesMissingFileGracefully(): void
     {
-        $missingPath = '/nonexistent/path.env';
+        $missing = '/nonexistent/.env';
 
-        $mockLogger = $this->createMock(LoggerInterface::class);
-        $mockLogger->expects($this->once())
+        $logger = $this->createMock(LoggerInterface::class);
+        $logger->expects($this->once())
             ->method('warning')
-            ->with($this->stringContains($missingPath));
+            ->with($this->stringContains($missing));
 
-        $loader = new SimpleDotEnvLoader($mockLogger);
-        $loader->load($missingPath);
+        $loader = new SimpleDotEnvLoader($logger);
+        $loader->load($missing);
     }
 
     /**
-     * Verifies sensitive keys like "token" are masked in logger output.
+     * Confirms sensitive keys (e.g., *_TOKEN, *_PASSWORD) are masked in logs.
      *
      * @return void
      */
@@ -138,55 +174,54 @@ final class SimpleDotEnvLoaderTest extends TestCase
             NORMAL_KEY=value
             ENV);
 
-        $expectedLogs = [
+        $expected = [
             ['info', 'API_TOKEN=***'],
             ['info', 'NORMAL_KEY=value'],
         ];
 
-        $mockLogger = $this->createMock(LoggerInterface::class);
-        $mockLogger->expects($this->exactly(2))
+        $logger = $this->createMock(LoggerInterface::class);
+        $logger->expects($this->exactly(2))
             ->method('info')
-            ->willReturnCallback(function($message) use (&$expectedLogs) {
-                $expectedLog = array_shift($expectedLogs);
-                if ($expectedLog === null) {
-                    $this->fail('Logger was called more times than expected.');
+            ->willReturnCallback(function(string $message) use (&$expected): void {
+                $check = array_shift($expected);
+                if (!is_array($check)) {
+                    self::fail('Unexpected logger invocation or missing log expectation.');
                 }
 
-                [$level, $content] = $expectedLog;
-                $this->assertStringContainsString($content, $message);
+                $this->assertStringContainsString($check[1], $message);
             });
 
-        $loader = new SimpleDotEnvLoader($mockLogger);
+        $loader = new SimpleDotEnvLoader($logger);
         $loader->load($this->tempEnvFile);
     }
 
     /**
-     * Confirms quoted values are correctly parsed.
+     * Validates correct unquoting of single‑ and double‑quoted values.
      *
      * @return void
      */
     public function testParsesQuotedValuesCorrectly(): void
     {
         $this->setEnvFileContent(<<<ENV
-            QUOTED1='value with spaces'
-            QUOTED2="another spaced value"
+            QUOTED1='hello world'
+            QUOTED2="test string"
             ENV);
 
         $loader = new SimpleDotEnvLoader();
         $loader->load($this->tempEnvFile);
 
-        $this->assertSame('value with spaces', $_ENV['QUOTED1']);
-        $this->assertSame('another spaced value', $_ENV['QUOTED2']);
+        $this->assertSame('hello world', $_ENV['QUOTED1']);
+        $this->assertSame('test string', $_ENV['QUOTED2']);
     }
 
     /**
-     * Confirms reset() allows the loader to reprocess the file.
+     * Ensures the internal processed‑file cache can be reset to allow reloads.
      *
      * @return void
      */
     public function testResetAllowsReload(): void
     {
-        $this->setEnvFileContent("RESET_VAR=123");
+        $this->setEnvFileContent('RESET_VAR=abc');
 
         $loader = new SimpleDotEnvLoader();
         $loader->load($this->tempEnvFile);
@@ -194,124 +229,128 @@ final class SimpleDotEnvLoaderTest extends TestCase
         unset($_ENV['RESET_VAR']);
         $loader->load($this->tempEnvFile);
 
-        $this->assertSame('123', $_ENV['RESET_VAR']);
+        $this->assertSame('abc', $_ENV['RESET_VAR']);
     }
 
+    /* --------------------------------------------------------------------- */
+    /*                             Parsing Quirks                            */
+    /* --------------------------------------------------------------------- */
+
     /**
-     * Confirms export keyword is handled and invalid lines are ignored.
+     * Supports optional leading `export`, ignores invalid lines & comments.
      *
      * @return void
      */
     public function testHandlesExportAndIgnoresInvalidLines(): void
     {
         $this->setEnvFileContent(<<<ENV
-            export VALID_KEY=valid
-            MALFORMED_LINE
+            export VALID=ok
+            INVALID_LINE
             # comment
             ENV);
 
         $loader = new SimpleDotEnvLoader();
         $loader->load($this->tempEnvFile);
 
-        $this->assertSame('valid', $_ENV['VALID_KEY']);
-        $this->assertArrayNotHasKey('MALFORMED_LINE', $_ENV);
+        $this->assertSame('ok', $_ENV['VALID']);
+        $this->assertArrayNotHasKey('INVALID_LINE', $_ENV);
     }
 
     /**
-     * Validates proper unescaping of backslashes and double quotes.
+     * Correctly processes escaped quotes and backslashes within quoted values.
      *
      * @return void
      */
     public function testHandlesEscapedQuotesAndBackslashes(): void
     {
         $this->setEnvFileContent(<<<ENV
-            ESCAPED_QUOTE="He said \\\"hello\\\""
-            ESCAPED_BACKSLASH="C:\\\\Program Files\\\\App"
+            ESCAPED_QUOTE="He said \\\"hi\\\""
+            ESCAPED_BACKSLASH="C:\\\\Path"
             ENV);
 
         $loader = new SimpleDotEnvLoader();
         $loader->load($this->tempEnvFile);
 
-        $this->assertSame("He said \\\"hello\\\"", $_ENV['ESCAPED_QUOTE']);
-        $this->assertSame("C:\\Program Files\\App", $_ENV['ESCAPED_BACKSLASH']);
+        $this->assertSame('He said \"hi\"', $_ENV['ESCAPED_QUOTE']);
+        $this->assertSame('C:\\Path', $_ENV['ESCAPED_BACKSLASH']);
     }
 
     /**
-     * Confirms nested quotes are preserved inside quoted strings.
+     * Accepts nested quotes of opposite kind within quoted values.
      *
      * @return void
      */
     public function testHandlesQuotesInsideQuotes(): void
     {
         $this->setEnvFileContent(<<<ENV
-            NESTED_QUOTE1="He said 'hello'"
-            NESTED_QUOTE2='She replied "goodbye"'
+            INSIDE1="He said 'yo'"
+            INSIDE2='Then she said "bye"'
             ENV);
 
         $loader = new SimpleDotEnvLoader();
         $loader->load($this->tempEnvFile);
 
-        $this->assertSame("He said 'hello'", $_ENV['NESTED_QUOTE1']);
-        $this->assertSame('She replied "goodbye"', $_ENV['NESTED_QUOTE2']);
+        $this->assertSame("He said 'yo'", $_ENV['INSIDE1']);
+        $this->assertSame('Then she said "bye"', $_ENV['INSIDE2']);
     }
 
     /**
-     * Ensures extra spaces and tabs are trimmed appropriately.
+     * Trims surrounding whitespace around keys and values.
      *
      * @return void
      */
     public function testHandlesWhitespaceAroundKeysAndValues(): void
     {
         $this->setEnvFileContent(<<<ENV
-              SPACED_KEY   =    "  spaced value "
+              KEY1   =   " spaced "
             TAB_KEY\t=\t"tabbed"
             ENV);
 
         $loader = new SimpleDotEnvLoader();
         $loader->load($this->tempEnvFile);
 
-        $this->assertSame('  spaced value ', $_ENV['SPACED_KEY']);
+        $this->assertSame(' spaced ', $_ENV['KEY1']);
         $this->assertSame('tabbed', $_ENV['TAB_KEY']);
     }
 
     /**
-     * Validates parsing of keys with symbols and digits.
+     * Supports keys containing dots, dashes, numbers, etc.
      *
      * @return void
      */
     public function testHandlesComplexKeys(): void
     {
         $this->setEnvFileContent(<<<ENV
-            MY.KEY=value1
-            MY-KEY=value2
-            KEY123=value3
+            KEY.ONE=1
+            KEY-TWO=2
+            KEY123=3
             ENV);
 
         $loader = new SimpleDotEnvLoader();
         $loader->load($this->tempEnvFile);
 
-        $this->assertSame('value1', $_ENV['MY.KEY']);
-        $this->assertSame('value2', $_ENV['MY-KEY']);
-        $this->assertSame('value3', $_ENV['KEY123']);
+        $this->assertSame('1', $_ENV['KEY.ONE']);
+        $this->assertSame('2', $_ENV['KEY-TWO']);
+        $this->assertSame('3', $_ENV['KEY123']);
     }
 
     /**
-     * Verifies that comment-only and blank lines are safely skipped.
+     * Parsing should ignore blank lines and pure comments without crashing.
      *
      * @return void
      */
     public function testIgnoresPureCommentsAndWhitespace(): void
     {
         $this->setEnvFileContent(<<<ENV
-            # this is a comment
+            # just a comment
 
 
-            \t\t
+            \t
             ENV);
 
         $loader = new SimpleDotEnvLoader();
         $loader->load($this->tempEnvFile);
 
-        $this->assertTrue(true); // confirms no fatal error or env pollution
+        $this->assertTrue(true); // No assertions beyond “no crash”.
     }
 }

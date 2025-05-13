@@ -2,6 +2,8 @@
 # phpstan.neon — Static Analysis Configuration (PHPStan 2.1+)
 # Project: PHP 8.3 PhpStorm Starter Project
 # Author: Pierre G. Boutquin
+# GitHub: https://github.com/boutquin
+# License: Apache 2.0
 # -------------------------------------------------------------------
 
 includes:

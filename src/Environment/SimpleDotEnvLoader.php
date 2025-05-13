@@ -9,20 +9,51 @@ use Psr\Log\LoggerInterface;
 /**
  * Class SimpleDotEnvLoader
  *
- * Loads environment variables from a `.env` file into the runtime environment.
+ * Lightweight, framework-agnostic `.env` loader for PHP CLI, test, or bootstrap scripts.
  *
- * Provides a lightweight, framework-agnostic solution for injecting config
- * at runtime, such as in CLI scripts, test suites, or bootstrap files.
+ * Purpose:
+ * - Loads environment variables from a flat .env file into $_ENV and $_SERVER
+ * - Avoids overwriting existing entries
+ * - Optionally logs diagnostic messages via PSR-3 logger
+ *
+ * Features:
+ * - Supports export VAR=VALUE syntax
+ * - Ignores blank lines and comments
+ * - Quotes and escapes are handled properly
+ * - Masks sensitive values in logs
+ *
+ * Usage:
+ * $loader = new SimpleDotEnvLoader($logger);
+ * $loader->load(__DIR__ . '/../.env');
+ *
+ * @author
+ *      Pierre G. Boutquin <github.com/boutquin>
+ * @license
+ *      Apache-2.0
+ *
+ * @see
+ *      https://github.com/boutquin/php-template
  */
 final class SimpleDotEnvLoader
 {
+    /**
+     * Whether the loader has already run.
+     *
+     * @var bool
+     */
     private bool $loaded = false;
+
+    /**
+     * Optional logger for info/debug output.
+     *
+     * @var LoggerInterface|null
+     */
     private ?LoggerInterface $logger;
 
     /**
      * Constructor.
      *
-     * @param LoggerInterface|null $logger Optional PSR-3 logger for diagnostics.
+     * @param LoggerInterface|null $logger Optional PSR-3 logger for diagnostics
      */
     public function __construct(?LoggerInterface $logger = null)
     {
@@ -30,16 +61,16 @@ final class SimpleDotEnvLoader
     }
 
     /**
-     * Loads a .env file if not already loaded.
+     * Loads the .env file if it hasn't already been processed.
      *
-     * @param string $path Absolute path to .env file.
+     * @param string $path Absolute path to .env file
      *
      * @return void
      */
     public function load(string $path): void
     {
         if ($this->loaded) {
-            $this->logger?->info("DotEnv already loaded. Skipping.");
+            $this->logger?->info('DotEnv already loaded. Skipping.');
             return;
         }
 
@@ -58,10 +89,12 @@ final class SimpleDotEnvLoader
         foreach ($lines as $lineNumber => $line) {
             $line = trim($line);
 
+            // Skip comments and empty lines
             if ($line === '' || str_starts_with($line, '#')) {
                 continue;
             }
 
+            // Support optional 'export' keyword
             $line = preg_replace('/^export\s+/', '', $line);
 
             if (!is_string($line)) {
@@ -71,17 +104,16 @@ final class SimpleDotEnvLoader
             $result = preg_match('/^([\w.-]+)\s*=\s*(.*)$/', $line, $matches);
 
             if ($result === false) {
-                $this->logger?->debug("Skipping invalid line at {$lineNumber}: {$line}");
+                $this->logger?->debug("Regex error at line {$lineNumber}: {$line}");
                 continue;
             }
 
             if ($result === 0) {
-                // no match
+                // Line did not match expected pattern
                 continue;
             }
 
             [$full, $key, $value] = $matches;
-
             $value = $this->unquoteValue($value);
 
             $wasSet = false;
@@ -106,7 +138,7 @@ final class SimpleDotEnvLoader
     }
 
     /**
-     * Resets internal load state to allow reprocessing.
+     * Resets the loader state, allowing reprocessing.
      *
      * @return void
      */
@@ -116,11 +148,11 @@ final class SimpleDotEnvLoader
     }
 
     /**
-     * Removes wrapping quotes and handles escaped characters.
+     * Unquotes a value and processes common escape sequences.
      *
-     * @param string $raw Raw value string.
+     * @param string $raw Raw value from .env line
      *
-     * @return string Cleaned value.
+     * @return string Unquoted and unescaped value
      */
     private function unquoteValue(string $raw): string
     {
@@ -133,16 +165,20 @@ final class SimpleDotEnvLoader
             $raw = substr($raw, 1, -1);
         }
 
-        return str_replace(['\\n', '\\r', '\\t', '\\\\'], ["\n", "\r", "\t", "\\"], $raw);
+        return str_replace(
+            ['\\n', '\\r', '\\t', '\\\\'],
+            ["\n", "\r", "\t", "\\"],
+            $raw
+        );
     }
 
     /**
-     * Masks sensitive values such as tokens and passwords.
+     * Returns a masked value if the key appears to be sensitive.
      *
-     * @param string $key Environment variable name.
-     * @param string $value Unmasked value.
+     * @param string $key Environment variable name
+     * @param string $value Original value
      *
-     * @return string Masked or raw value.
+     * @return string Masked or raw value for logging
      */
     private function maskIfSensitive(string $key, string $value): string
     {

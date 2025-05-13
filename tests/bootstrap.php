@@ -23,9 +23,12 @@ use App\Environment\SimpleDotEnvLoader;
  * TEST_DOTENV_PATH="$(pwd)/.env.test" vendor/bin/phpunit
  *
  * @author
- *     Pierre G. Boutquin <github.com/boutquin>
+ *      Pierre G. Boutquin <github.com/boutquin>
  * @license
- *     Apache-2.0
+ *      Apache-2.0
+ *
+ * @see
+ *      https://github.com/boutquin/php-template
  */
 
 require_once dirname(__DIR__) . '/vendor/autoload.php';
